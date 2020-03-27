@@ -2,10 +2,11 @@
 
 
 
+
 ### Installation instructions
 
+This implementation is written in Rust using [Rust-SDK](https://github.com/apache/incubator-teaclave-sgx-sdk).
 
-##### Requires Docker
 
 ```bash
 docker run -ti --rm -v /Users/edison/code/sgx/incubator-teaclave-sgx-sdk:/root/sgx  baiduxlab/sgx-rust

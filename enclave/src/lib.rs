@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License..
 
-#![crate_name = "helloworldsampleenclave"]
+#![crate_name = "escrowenclave"]
 #![crate_type = "staticlib"]
 #![cfg_attr(not(target_env = "sgx"), no_std)]
 #![cfg_attr(target_env = "sgx", feature(rustc_private))]
@@ -27,11 +27,15 @@ extern crate sgx_tstd as std;
 extern crate sgx_rand;
 extern crate secp256k1;
 
+mod seal;
+
 use sgx_types::*;
 use std::io::{self, Write};
 use std::slice;
 use std::string::String;
 use std::vec::Vec;
+
+use seal::seal_data;
 
 use sgx_rand::{Rng, thread_rng};
 
@@ -99,6 +103,8 @@ pub extern "C" fn generate_keys() -> sgx_status_t {
     println!("Public key: {:?}", pubkey);
 
     println!("Key generated");
+
+    seal_data();
 
     // let mut msg = [0u8; 32];
     // thread_rng().fill_bytes(&mut msg);
