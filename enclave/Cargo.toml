@@ -12,9 +12,16 @@ default = []
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
 sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tseal = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_rand = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tservice = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 libsecp256k1 = { git = "https://github.com/mesalock-linux/libsecp256k1-rs-sgx.git"}
+
+[dependencies]
+serde = { git = "https://github.com/mesalock-linux/serde-sgx" }
+serde_derive = { git = "https://github.com/mesalock-linux/serde-sgx" }
+serde_cbor = { git = "https://github.com/mesalock-linux/cbor-sgx" }
 
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']

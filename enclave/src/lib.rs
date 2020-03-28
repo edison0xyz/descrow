@@ -24,10 +24,15 @@ extern crate sgx_types;
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
-extern crate sgx_rand;
 extern crate secp256k1;
+extern crate serde_cbor;
+extern crate serde_derive;
+extern crate sgx_rand;
+extern crate sgx_tservice;
 
 mod seal;
+mod keygen;
+mod error;
 
 use sgx_types::*;
 use std::io::{self, Write};
@@ -36,10 +41,10 @@ use std::string::String;
 use std::vec::Vec;
 
 use seal::seal_data;
+use keygen::generate_private_key;
+use sgx_rand::{thread_rng, Rng};
 
-use sgx_rand::{Rng, thread_rng};
-
-use secp256k1::{SecretKey, PublicKey};
+use secp256k1::{PublicKey, SecretKey};
 
 /// A function simply invokes ocall print to print the incoming string
 ///
@@ -89,7 +94,6 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
 pub extern "C" fn generate_keys() -> sgx_status_t {
     println!("generating keys...");
 
-
     // generate randomness using sgx_rand
     let mut v = [0u8; 32];
     thread_rng().fill_bytes(&mut v);
@@ -97,14 +101,20 @@ pub extern "C" fn generate_keys() -> sgx_status_t {
     let seckey = SecretKey::parse(&v).unwrap();
     let pubkey = PublicKey::from_secret_key(&seckey);
 
-    let pk = pubkey.serialize();
+    // let pk = pubkey.serialize();
     println!("Secret key: {:?}", seckey);
 
     println!("Public key: {:?}", pubkey);
 
     println!("Key generated");
 
-    seal_data();
+    let sealed_log_size : u32 = 1024;
+    let ret_status = seal_data(sealed_log_size);
+
+    match ret_status {
+        sgx_status_t::SGX_SUCCESS => println!("Success"), 
+        _ => println!("Error"),
+    }
 
     // let mut msg = [0u8; 32];
     // thread_rng().fill_bytes(&mut msg);
@@ -113,7 +123,6 @@ pub extern "C" fn generate_keys() -> sgx_status_t {
 
     // let x = sgx_rand::random::<u8>();
     // println!("{}", x);
-    
-    
+
     sgx_status_t::SGX_SUCCESS
 }
