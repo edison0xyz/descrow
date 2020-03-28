@@ -1,10 +1,16 @@
-use std::result;
 use std::vec::Vec;
 use sgx_rand::{Rng, thread_rng};
-use secp256k1::{PublicKey, SecretKey};
-use error::EnclaveError;
+use secp256k1::{SecretKey};
+use sgx_types::marker::ContiguousMemory;
 
-type Result<T> = result::Result<T, EnclaveError>;
+// fixme: secret key should only be private within crate
+#[derive(Copy, Clone)]
+pub struct BlockchainKeyStruct {
+  pub secret_key: [u8; 32],
+}
+
+// contiguous memory required for sealed_data function
+unsafe impl ContiguousMemory for BlockchainKeyStruct{}
 
 pub extern "C" fn generate_private_key() -> SecretKey {
   SecretKey::parse(&get_randombytes_32_u8()).unwrap()

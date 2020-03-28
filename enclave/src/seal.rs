@@ -1,9 +1,8 @@
 extern crate sgx_tseal;
 extern crate sgx_types;
-use sgx_rand::{Rng, StdRng};
 use self::sgx_tseal::SgxSealedData;
 use sgx_types::marker::ContiguousMemory;
-use error::EnclaveError;
+use keygen::BlockchainKeyStruct;
 
 #[cfg(not(target_env = "sgx"))]
 use sgx_types::{sgx_status_t, sgx_sealed_data_t};
@@ -18,49 +17,31 @@ struct RandDataFixed {
 unsafe impl ContiguousMemory for RandDataFixed {}
 
 
-// create sealed data for fixed size
 #[no_mangle]
-pub extern "C" fn seal_data(sealed_log_size: u32) -> sgx_status_t {
-    let mut data = RandDataFixed::default();
-    data.key = 0x1234;
+pub extern "C" fn seal_keypair(sealed_log: * mut u8, sealed_log_size: u32, keypair: BlockchainKeyStruct) -> sgx_status_t {
 
-    let mut rand = match StdRng::new() {
-        Ok(rng) => rng,
-        Err(_) => {
-            return sgx_status_t::SGX_ERROR_UNEXPECTED;
-        }
+    println!("Sealing keypair..."); 
+    
+    // empty additional text, ref: https://dingelish.github.io/sgx_tseal/sgx_tseal/struct.SgxSealedData.html
+    let aad: [u8; 0] = [0_u8; 0];
+    let result = SgxSealedData::<BlockchainKeyStruct>::seal_data(&aad, &keypair);
+    let sealed_data = match result {
+        Ok(x) => x,
+        Err(ret) => { return ret; },
     };
-    rand.fill_bytes(&mut data.rand);
+    let opt = to_sealed_log_for_fixed(&sealed_data, sealed_log, sealed_log_size);
+    if opt.is_none() {
+        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    }
 
-    // // additional data
-    // let aad: [u8; 0] = [0_u8; 0];
-    // let result = SgxSealedData::<RandDataFixed>::seal_data(&aad, &data);
-    
-    
-    // let sealed_data = match result {
-    //   Ok(x) => x,
-    //   Err(ret) => { 
-    //     println!("Error..");
-    //     return ret; 
-    //   },
-    // };
-
-
-    // let sealed_res = to_sealed_log(&sealed_data, sealed_log, sealed_log_size);
-    // if sealed_res.is_none() {
-    //   return sgx_status_t::SGX_ERROR_UNEXPECTED;
-    // }
-
-    println!("{:?}", data);
-
-    println!("Sealing complete.");
+    println!("Successfully sealed");
 
     sgx_status_t::SGX_SUCCESS
+
 }
 
-
-fn to_sealed_log<T: Copy + ContiguousMemory>(sealed_data: &SgxSealedData<T>, sealed_log: * mut u8, sealed_log_size: u32) -> Option<* mut sgx_sealed_data_t> {
-  unsafe {
-      sealed_data.to_raw_sealed_data_t(sealed_log as * mut sgx_sealed_data_t, sealed_log_size)
-  }
+fn to_sealed_log_for_fixed<T: Copy + ContiguousMemory>(sealed_data: &SgxSealedData<T>, sealed_log: * mut u8, sealed_log_size: u32) -> Option<* mut sgx_sealed_data_t> {
+    unsafe {
+        sealed_data.to_raw_sealed_data_t(sealed_log as * mut sgx_sealed_data_t, sealed_log_size)
+    }
 }

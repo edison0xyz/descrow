@@ -32,7 +32,6 @@ extern crate sgx_tservice;
 
 mod seal;
 mod keygen;
-mod error;
 
 use sgx_types::*;
 use std::io::{self, Write};
@@ -40,11 +39,8 @@ use std::slice;
 use std::string::String;
 use std::vec::Vec;
 
-use seal::seal_data;
-use keygen::generate_private_key;
-use sgx_rand::{thread_rng, Rng};
-
-use secp256k1::{PublicKey, SecretKey};
+use seal::{seal_keypair};
+use keygen::{generate_private_key, BlockchainKeyStruct};
 
 /// A function simply invokes ocall print to print the incoming string
 ///
@@ -92,37 +88,20 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
 
 #[no_mangle]
 pub extern "C" fn generate_keys() -> sgx_status_t {
-    println!("generating keys...");
+    println!("[+] Generating keys...");
 
-    // generate randomness using sgx_rand
-    let mut v = [0u8; 32];
-    thread_rng().fill_bytes(&mut v);
+    let sk = generate_private_key().serialize();
+    let new_key : BlockchainKeyStruct = BlockchainKeyStruct {
+        secret_key: sk,
+    };
 
-    let seckey = SecretKey::parse(&v).unwrap();
-    let pubkey = PublicKey::from_secret_key(&seckey);
+    println!("[+] Key generated");
 
-    // let pk = pubkey.serialize();
-    println!("Secret key: {:?}", seckey);
-
-    println!("Public key: {:?}", pubkey);
-
-    println!("Key generated");
-
+    // seal keystruct into enclave
     let sealed_log_size : u32 = 1024;
-    let ret_status = seal_data(sealed_log_size);
-
-    match ret_status {
-        sgx_status_t::SGX_SUCCESS => println!("Success"), 
-        _ => println!("Error"),
-    }
-
-    // let mut msg = [0u8; 32];
-    // thread_rng().fill_bytes(&mut msg);
-
-    // SecretKey::random(&mut thread_rng());
-
-    // let x = sgx_rand::random::<u8>();
-    // println!("{}", x);
+    let sealed_log : & mut u8 = &mut 0_u8;
+    seal_keypair(sealed_log, sealed_log_size, new_key);
+    
 
     sgx_status_t::SGX_SUCCESS
 }

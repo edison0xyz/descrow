@@ -16,6 +16,12 @@ Cargo.lock
 #generated assembly
 third_party/ring/pregenerated
 
+# proxy files
+*_u.c
+*_u.h
+*_t.c
+*_t.h
+
 #Bazel
 .clwb
 bazel-bin
