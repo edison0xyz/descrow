@@ -30,6 +30,9 @@ extern crate serde_derive;
 extern crate sgx_rand;
 extern crate sgx_tservice;
 extern crate sgx_tseal;
+extern crate sgx_trts;
+extern crate sgx_tcrypto;
+
 
 mod seal;
 mod keygen;
@@ -41,7 +44,7 @@ use std::string::String;
 use std::vec::Vec;
 
 use seal::{seal_keypair};
-use keygen::{generate_private_key, BlockchainKeyStruct};
+use keygen::{generate_private_key, generate_data_key, BlockchainKeyStruct};
 
 /// A function simply invokes ocall print to print the incoming string
 ///
@@ -114,5 +117,13 @@ pub extern "C" fn generate_keys() -> sgx_status_t {
             sgx_status_t::SGX_ERROR_INVALID_PARAMETER
         }
     }
-    
+}
+
+#[no_mangle]
+pub extern "C" fn process_data_registration(text: * const u8, text_len: usize) -> sgx_status_t {
+    println!("[+] process_data_registration.. ");
+
+    generate_data_key(text, text_len);
+
+    sgx_status_t::SGX_SUCCESS
 }

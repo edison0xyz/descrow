@@ -26,6 +26,7 @@ enclave {
 
         public sgx_status_t say_something([in, size=len] const uint8_t* some_string, size_t len);
         public sgx_status_t generate_keys();
+        public sgx_status_t process_data_registration([in, size=len] const uint8_t* text, size_t len);
     };
 
     untrusted {
