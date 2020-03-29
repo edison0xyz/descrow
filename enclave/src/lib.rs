@@ -29,6 +29,7 @@ extern crate serde_cbor;
 extern crate serde_derive;
 extern crate sgx_rand;
 extern crate sgx_tservice;
+extern crate sgx_tseal;
 
 mod seal;
 mod keygen;
@@ -86,6 +87,8 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
     sgx_status_t::SGX_SUCCESS
 }
 
+
+// main utility for generate keys function. Generates and seal the key
 #[no_mangle]
 pub extern "C" fn generate_keys() -> sgx_status_t {
     println!("[+] Generating keys...");
@@ -96,12 +99,20 @@ pub extern "C" fn generate_keys() -> sgx_status_t {
     };
 
     println!("[+] Key generated");
+    println!("{:?}", sk);
 
     // seal keystruct into enclave
-    let sealed_log_size : u32 = 1024;
     let sealed_log : & mut u8 = &mut 0_u8;
-    seal_keypair(sealed_log, sealed_log_size, new_key);
+    let result = seal_keypair(sealed_log, new_key);
+    match result {
+        sgx_status_t::SGX_SUCCESS => { 
+            println!("[+] Successfully generated and sealed keys.");
+            sgx_status_t::SGX_SUCCESS
+        },
+        _ => { 
+            println!("[-] Error generating and sealing keys.");
+            sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+        }
+    }
     
-
-    sgx_status_t::SGX_SUCCESS
 }
