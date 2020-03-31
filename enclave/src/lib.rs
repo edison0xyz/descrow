@@ -28,7 +28,6 @@ extern crate secp256k1;
 extern crate serde_cbor;
 extern crate serde_derive;
 extern crate sgx_rand;
-extern crate sgx_tservice;
 extern crate sgx_tseal;
 extern crate sgx_trts;
 extern crate sgx_tcrypto;
