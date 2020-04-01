@@ -35,6 +35,7 @@ extern crate sgx_tcrypto;
 
 mod seal;
 mod keygen;
+mod tss;
 
 use sgx_types::*;
 use std::io::{self, Write};

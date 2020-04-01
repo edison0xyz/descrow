@@ -7,6 +7,7 @@ use sgx_types::marker::ContiguousMemory;
 use sgx_trts::memeq::ConsttimeMemEq;
 use sgx_tcrypto::*;
 use sgx_types::{sgx_status_t};
+use tss::SecretData;
 
 // fixme: secret key should only be private within crate
 #[derive(Copy, Clone)]
@@ -111,6 +112,10 @@ pub extern "C" fn generate_data_key(text: * const u8, text_len: usize) -> sgx_st
             println!("rsa chipertext_len: {:?}", chipertext_len);
         },
     };
+
+    // test shamir
+    println!("Testing shamir...");
+    let seret_data = SecretData::with_secret("Hello", 3);
 
     let mut plaintext: Vec<u8> = vec![0_u8; 256];
     let mut plaintext_len: usize = plaintext.len();
