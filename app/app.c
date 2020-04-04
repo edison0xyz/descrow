@@ -216,7 +216,8 @@ int SGX_CDECL main(int argc, char *argv[])
         0xad, 0x2b, 0x41, 0x7b, 0xe6, 0x6c, 0x37, 0x10
     };
 
-    sgx_ret = process_data_registration(global_eid, &enclave_ret, escrowed_data_identifier, sizeof(escrowed_data_identifier));
+    // sgx_ret = process_data_registration(global_eid, &enclave_ret, escrowed_data_identifier, sizeof(escrowed_data_identifier));
+    sgx_ret = shamir_split_keys(global_eid, &enclave_ret);
 
     if(sgx_ret != SGX_SUCCESS) {
         print_error_message(sgx_ret);

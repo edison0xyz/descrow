@@ -28,13 +28,12 @@ extern crate secp256k1;
 extern crate serde_cbor;
 extern crate serde_derive;
 extern crate sgx_rand;
-extern crate sgx_tseal;
-extern crate sgx_trts;
 extern crate sgx_tcrypto;
+extern crate sgx_trts;
+extern crate sgx_tseal;
 
-
-mod seal;
 mod keygen;
+mod seal;
 mod tss;
 
 use sgx_types::*;
@@ -42,9 +41,10 @@ use std::io::{self, Write};
 use std::slice;
 use std::string::String;
 use std::vec::Vec;
+use tss::SecretData;
 
-use seal::{seal_keypair};
-use keygen::{generate_private_key, generate_data_key, BlockchainKeyStruct};
+use keygen::{generate_data_key, generate_private_key, BlockchainKeyStruct};
+use seal::seal_keypair;
 
 /// A function simply invokes ocall print to print the incoming string
 ///
@@ -90,29 +90,26 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
     sgx_status_t::SGX_SUCCESS
 }
 
-
 // main utility for generate keys function. Generates and seal the key
 #[no_mangle]
 pub extern "C" fn generate_keys() -> sgx_status_t {
     println!("[+] Generating keys...");
 
     let sk = generate_private_key().serialize();
-    let new_key : BlockchainKeyStruct = BlockchainKeyStruct {
-        secret_key: sk,
-    };
+    let new_key: BlockchainKeyStruct = BlockchainKeyStruct { secret_key: sk };
 
     println!("[+] Key generated");
     println!("{:?}", sk);
 
     // seal keystruct into enclave
-    let sealed_log : & mut u8 = &mut 0_u8;
+    let sealed_log: &mut u8 = &mut 0_u8;
     let result = seal_keypair(sealed_log, new_key);
     match result {
-        sgx_status_t::SGX_SUCCESS => { 
+        sgx_status_t::SGX_SUCCESS => {
             println!("[+] Successfully generated and sealed keys.");
             sgx_status_t::SGX_SUCCESS
-        },
-        _ => { 
+        }
+        _ => {
             println!("[-] Error generating and sealing keys.");
             sgx_status_t::SGX_ERROR_INVALID_PARAMETER
         }
@@ -120,10 +117,37 @@ pub extern "C" fn generate_keys() -> sgx_status_t {
 }
 
 #[no_mangle]
-pub extern "C" fn process_data_registration(text: * const u8, text_len: usize) -> sgx_status_t {
+pub extern "C" fn process_data_registration(text: *const u8, text_len: usize) -> sgx_status_t {
     println!("[+] process_data_registration.. ");
 
     generate_data_key(text, text_len);
 
+    // test shamir
+    // println!("Testing shamir...");
+    // let seret_data = SecretData::with_secret("Hello", 3);
+
     sgx_status_t::SGX_SUCCESS
 }
+
+
+#[no_mangle]
+pub extern "C" fn shamir_split_keys() -> sgx_status_t {
+    println!("[+] test_shamir ");
+
+    // test shamir
+    println!("Testing shamir...");
+    let secret_data = SecretData::with_secret("Add secret key here", 2);
+    let share_1 = secret_data.get_share(1).unwrap();
+    let share_2 = secret_data.get_share(2).unwrap();
+
+    println!("Shamir share 1 {:?}", share_1);
+    println!("Shamir share 2 {:?}", share_2);
+
+
+    let test_recovery = SecretData::recover_secret(2, vec![share_1, share_2]).unwrap();
+    println!("Recovered secret: {}", test_recovery);
+
+    sgx_status_t::SGX_SUCCESS
+}
+
+

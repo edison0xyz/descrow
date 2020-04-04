@@ -1,99 +1,9 @@
-use sgx_rand::{thread_rng, Rng};
-use std::vec::Vec;
-use std::string::String;
+use sgx_rand::{thread_rng, Rng, ThreadRng};
 use std::borrow::ToOwned;
+use std::string::String;
 use std::string::ToString;
-
-#[cfg(test)]
-mod tests {
-    use super::SecretData;
-    #[test]
-    fn it_works() {}
-
-    #[test]
-    fn it_generates_coefficients() {
-        let secret_data = SecretData::with_secret("Hello, world!", 3);
-        assert_eq!(secret_data.coefficients.len(), 13);
-    }
-
-    #[test]
-    fn it_rejects_share_id_under_1() {
-        let secret_data = SecretData::with_secret("Hello, world!", 3);
-        let d = secret_data.get_share(0);
-        assert!(d.is_err());
-    }
-
-    #[test]
-    fn it_issues_shares() {
-        let secret_data = SecretData::with_secret("Hello, world!", 3);
-
-        let s1 = secret_data.get_share(1).unwrap();
-        println!("Share: {:?}", s1);
-        assert!(secret_data.is_valid_share(&s1));
-    }
-
-    #[test]
-    fn it_repeatedly_issues_shares() {
-        let secret_data = SecretData::with_secret("Hello, world!", 3);
-
-        let s1 = secret_data.get_share(1).unwrap();
-        println!("Share: {:?}", s1);
-        assert!(secret_data.is_valid_share(&s1));
-
-        let s2 = secret_data.get_share(1).unwrap();
-        assert_eq!(s1, s2);
-    }
-
-    #[test]
-    fn it_can_recover_secret() {
-        let s1 = vec![1, 184, 190, 251, 87, 232, 39, 47, 17, 4, 36, 190, 245];
-        let s2 = vec![2, 231, 107, 52, 138, 34, 221, 9, 221, 67, 79, 33, 16];
-        let s3 = vec![3, 23, 176, 163, 177, 165, 218, 113, 163, 53, 7, 251, 196];
-
-        let new_secret = SecretData::recover_secret(3, vec![s1, s2, s3]).unwrap();
-
-        assert_eq!(&new_secret[..], "Hello World!");
-    }
-
-    #[test]
-    fn it_can_recover_a_generated_secret() {
-        let secret_data = SecretData::with_secret("Hello, world!", 3);
-
-        let s1 = secret_data.get_share(1).unwrap();
-        println!("s1: {:?}", s1);
-        let s2 = secret_data.get_share(2).unwrap();
-        println!("s2: {:?}", s2);
-        let s3 = secret_data.get_share(3).unwrap();
-        println!("s3: {:?}", s3);
-
-        let new_secret = SecretData::recover_secret(3, vec![s1, s2, s3]).unwrap();
-
-        assert_eq!(&new_secret[..], "Hello, world!");
-    }
-
-    #[test]
-    fn it_requires_enough_shares() {
-        fn try_recover(n: u8, shares: &Vec<Vec<u8>>) -> Option<String> {
-            let shares = shares.iter().take(n as usize).cloned().collect::<Vec<_>>();
-            SecretData::recover_secret(n, shares)
-        }
-        let secret_data = SecretData::with_secret("Hello World!", 5);
-
-        let shares = vec![
-            secret_data.get_share(1).unwrap(),
-            secret_data.get_share(2).unwrap(),
-            secret_data.get_share(3).unwrap(),
-            secret_data.get_share(4).unwrap(),
-            secret_data.get_share(5).unwrap(),
-        ];
-
-        let recovered = try_recover(5, &shares);
-        assert!(recovered.is_some());
-
-        let recovered = try_recover(3, &shares);
-        assert!(recovered.is_none());
-    }
-}
+use std::vec::Vec;
+use keygen::get_x_random_bytes_vec;
 
 pub struct SecretData {
     pub secret_data: Option<String>,
@@ -108,19 +18,23 @@ pub enum ShamirError {
 
 impl SecretData {
     pub fn with_secret(secret: &str, threshold: u8) -> SecretData {
-
         let mut coefficients: Vec<Vec<u8>> = vec![];
-        let mut rng = thread_rng();
+        println!("In SecretData");
+        println!("New rng");
         let mut rand_container = vec![0u8; (threshold - 1) as usize];
+
         for c in secret.as_bytes() {
-            rng.fill_bytes(&mut rand_container);
+
+            // fixme: randomise the bytes
+            
+            // thread_rng().fill_bytes(&mut rand_container);
             let mut coef: Vec<u8> = vec![*c];
             for r in rand_container.iter() {
                 coef.push(*r);
             }
             coefficients.push(coef);
         }
-
+        println!("Secret successfully split into {:?} shares.", threshold);
         SecretData {
             secret_data: Some(secret.to_string()),
             coefficients,
@@ -134,7 +48,7 @@ impl SecretData {
         let mut share_bytes: Vec<u8> = vec![];
         let coefficients = self.coefficients.clone();
         for coefficient in coefficients {
-            let b = try!(SecretData::accumulate_share_bytes(id, coefficient));
+            let b = (SecretData::accumulate_share_bytes(id, coefficient))?;
             share_bytes.push(b);
         }
 
