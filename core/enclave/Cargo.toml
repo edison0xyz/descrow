@@ -1,10 +1,10 @@
 [package]
-name = "dataescrowenclave"
+name = "escrowenclave"
 version = "1.0.0"
 authors = ["The Teaclave Authors"]
 
 [lib]
-name = "sealdatasampleenclave"
+name = "escrowenclave"
 crate-type = ["staticlib"]
 
 [features]
@@ -49,3 +49,4 @@ sgx_types = { path = "../../dependencies/sgx_types" }
 #sgx_ucrypto = { path = "../../dependencies/sgx_ucrypto" }
 sgx_unwind = { path = "../../dependencies/sgx_unwind" }
 #sgx_urts = { path = "../../dependencies/sgx_urts" }
+

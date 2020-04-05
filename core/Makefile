@@ -125,8 +125,8 @@ all: $(Enclave_EDL_Files) $(App_Name) $(Signed_RustEnclave_Name)
 ######## EDL Objects ########
 
 $(Enclave_EDL_Files): $(SGX_EDGER8R) enclave/Enclave.edl
-	$(SGX_EDGER8R) --trusted enclave/Enclave.edl --search-path $(SGX_SDK)/include --search-path $(CUSTOM_EDL_PATH) -trusted-dir enclave
-	$(SGX_EDGER8R) --untrusted enclave/Enclave.edl --search-path $(SGX_SDK)/include --search-path $(CUSTOM_EDL_PATH)  --untrusted-dir app
+	$(SGX_EDGER8R) --trusted enclave/Enclave.edl --search-path $(SGX_SDK)/include --search-path ../dependencies/edl --trusted-dir enclave
+	$(SGX_EDGER8R) --untrusted enclave/Enclave.edl --search-path $(SGX_SDK)/include --search-path ../dependencies/edl --untrusted-dir app
 	@echo "GEN  =>  $(Enclave_EDL_Files)"
 
 ######## App Objects ########
@@ -152,7 +152,7 @@ enclave/Enclave_t.o: enclave/Enclave_t.c
 	@echo "CC   <=  $<"
 
 $(RustEnclave_Name): enclave compiler-rt enclave/Enclave_t.o
-	cp  ../compiler-rt/libcompiler-rt-patch.a ./lib
+	cp ../compiler-rt/libcompiler-rt-patch.a ./lib
 	@$(CXX) enclave/Enclave_t.o -o $@ $(RustEnclave_Link_Flags)
 	@echo "LINK =>  $@"
 
@@ -167,7 +167,7 @@ enclave:
 
 .PHONY: compiler-rt
 compiler-rt:
-	$(MAKE) -C  ../compiler-rt/ 2> /dev/null
+	$(MAKE) -C ../compiler-rt/ 2> /dev/null
 
 .PHONY: sgx_ustdc
 sgx_ustdc:
