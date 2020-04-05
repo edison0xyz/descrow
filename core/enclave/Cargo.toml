@@ -14,7 +14,7 @@ default = []
 sgx_tcrypto = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_tseal = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git"}
 sgx_rand = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 
 [dependencies]

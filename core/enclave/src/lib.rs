@@ -86,8 +86,6 @@ pub extern "C" fn process_data_registration(escrowed_data_identifier: *const u8,
     let ecc_handle = SgxEccHandle::new();
     println!("attempting to create keypair");
     let mut private = sgx_ec256_private_t::default();
-    rand.fill_bytes(&mut private.r);
-
     let mut public = sgx_ec256_public_t::default();
     // let (private, public) = ecc_handle.create_key_pair().unwrap();
 
@@ -104,16 +102,33 @@ pub extern "C" fn process_data_registration(escrowed_data_identifier: *const u8,
     let sk_d1 = secret_data.get_share(1).unwrap();
     let sk_d2 = secret_data.get_share(2).unwrap();
 
-
     println!("Shamir share 1 {:?}", sk_d1);
     println!("Shamir share 2 {:?}", sk_d2);
 
+
+    let s1 = sk_d1.len();
+
+    // // declare vectors
+    // let sealed_log_size : u32 = 1024;
+    // let sealed_log = [0_u8; 0];
+
+    // let ret = create_sealeddata_for_fixed(&sealed_log, sealed_log_size);
+    // match ret {
+    //     sgx_status_t::SGX_SUCCESS => { println!("Success") },
+    //     _ => {
+    //         println!("[-] Error sealing data {}!", ret);
+    // //         return sgx_status_t::SGX_ERROR_UNEXPECTED;
+    // //     }
+    // };
+
     // seal sk_d1
 
+    println!("Pub key: {:?}", sk_d1);
+    println!("size: {}", s1);
 
-    println!("Pub key: {:?}", public.gx);
     // keygen::generate_data_key();
 
+    println!("[+]   process data registration completed");
 
     sgx_status_t::SGX_SUCCESS
 }
