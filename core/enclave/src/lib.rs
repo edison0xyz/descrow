@@ -41,6 +41,8 @@ use sgx_types::marker::ContiguousMemory;
 use sgx_tseal::{SgxSealedData};
 use sgx_rand::{Rng, StdRng};
 use std::vec::Vec;
+use std::mem;
+use std::str;
 use shamir::SecretData;
 use sgx_types::{sgx_ec256_private_t, sgx_ec256_public_t};
 use sgx_tcrypto::{SgxEccHandle};
@@ -75,20 +77,41 @@ pub extern "C" fn process_data_registration(escrowed_data_identifier: *const u8,
     println!("[+] process_data_registration.. ");
     println!("{:?}", escrowed_data_identifier);
 
+    let mut rand = match StdRng::new() {
+        Ok(rng) => rng,
+        Err(_) => { return sgx_status_t::SGX_ERROR_UNEXPECTED; },
+    };
 
-    // // shamir tests
-    // println!("attempting to split keys...");
-    // let secret_data = SecretData::with_secret("Add secret key here", 2);
-    // let share_1 = secret_data.get_share(1).unwrap();
-    // let share_2 = secret_data.get_share(2).unwrap();
-
-
-    // generate_data_key(text, text_len);
-
-      // generate ecc256 Keypair
+     // generate ecc256 Keypair
     let ecc_handle = SgxEccHandle::new();
-    let (private_key, public_key) = ecc_handle.create_key_pair().unwrap();
+    println!("attempting to create keypair");
+    let mut private = sgx_ec256_private_t::default();
+    rand.fill_bytes(&mut private.r);
 
+    let mut public = sgx_ec256_public_t::default();
+    // let (private, public) = ecc_handle.create_key_pair().unwrap();
+
+    // convert private_key into string
+    let private_key = match str::from_utf8(&private.r) {
+        Ok(pk) => pk,
+        Err(e) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    };
+    println!("Private key: {:?}", private_key);
+
+    // split the private key into share_1 (sk_d1) and share_2 (sk_d2)
+    println!("attempting to split keys...");
+    let secret_data = SecretData::with_secret(private_key, 2);
+    let sk_d1 = secret_data.get_share(1).unwrap();
+    let sk_d2 = secret_data.get_share(2).unwrap();
+
+
+    println!("Shamir share 1 {:?}", sk_d1);
+    println!("Shamir share 2 {:?}", sk_d2);
+
+    // seal sk_d1
+
+
+    println!("Pub key: {:?}", public.gx);
     // keygen::generate_data_key();
 
 
