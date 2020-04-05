@@ -32,17 +32,20 @@ extern crate sgx_rand;
 extern crate serde_derive;
 extern crate serde_cbor;
 
+mod shamir;
+
 use sgx_types::{sgx_status_t, sgx_sealed_data_t};
 use sgx_types::marker::ContiguousMemory;
 use sgx_tseal::{SgxSealedData};
 use sgx_rand::{Rng, StdRng};
 use std::vec::Vec;
+use shamir::SecretData;
 
-// A sample struct to show the usage of serde + seal
 // This struct could not be used in sgx_seal directly because it is
 // **not** continuous in memory. The `vec` is the bad member.
 // However, it is serializable. So we can serialize it first and
 // put convert the Vec<u8> to [u8] then put [u8] to sgx_seal API!
+// note: serde and deserialisation is required  https://serde.rs/
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
 struct RandDataSerializable {
     key: u32,
@@ -63,7 +66,28 @@ struct RandDataFixed {
 unsafe impl ContiguousMemory for RandDataFixed{}
 
 #[no_mangle]
+pub extern "C" fn process_data_registration(escrowed_data_identifier: *const u8, text_len: usize) -> sgx_status_t {
+    println!("[+] process_data_registration.. ");
+    println!("{:?}", escrowed_data_identifier);
+
+
+    // shamir tests
+    println!("attempting to split keys...");
+    let secret_data = SecretData::with_secret("Add secret key here", 2);
+    let share_1 = secret_data.get_share(1).unwrap();
+    let share_2 = secret_data.get_share(2).unwrap();
+
+
+    // generate_data_key(text, text_len);
+
+
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
 pub extern "C" fn create_sealeddata_for_fixed(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
+
+
 
     let mut data = RandDataFixed::default();
     data.key = 0x1234;
