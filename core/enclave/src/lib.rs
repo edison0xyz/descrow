@@ -27,12 +27,14 @@ extern crate sgx_tseal;
 #[macro_use]
 extern crate sgx_tstd as std;
 extern crate sgx_rand;
+extern crate sgx_tcrypto;
 
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_cbor;
 
 mod shamir;
+mod keygen;
 
 use sgx_types::{sgx_status_t, sgx_sealed_data_t};
 use sgx_types::marker::ContiguousMemory;
@@ -40,6 +42,9 @@ use sgx_tseal::{SgxSealedData};
 use sgx_rand::{Rng, StdRng};
 use std::vec::Vec;
 use shamir::SecretData;
+use sgx_types::{sgx_ec256_private_t, sgx_ec256_public_t};
+use sgx_tcrypto::{SgxEccHandle};
+
 
 // This struct could not be used in sgx_seal directly because it is
 // **not** continuous in memory. The `vec` is the bad member.
@@ -71,14 +76,20 @@ pub extern "C" fn process_data_registration(escrowed_data_identifier: *const u8,
     println!("{:?}", escrowed_data_identifier);
 
 
-    // shamir tests
-    println!("attempting to split keys...");
-    let secret_data = SecretData::with_secret("Add secret key here", 2);
-    let share_1 = secret_data.get_share(1).unwrap();
-    let share_2 = secret_data.get_share(2).unwrap();
+    // // shamir tests
+    // println!("attempting to split keys...");
+    // let secret_data = SecretData::with_secret("Add secret key here", 2);
+    // let share_1 = secret_data.get_share(1).unwrap();
+    // let share_2 = secret_data.get_share(2).unwrap();
 
 
     // generate_data_key(text, text_len);
+
+      // generate ecc256 Keypair
+    let ecc_handle = SgxEccHandle::new();
+    let (private_key, public_key) = ecc_handle.create_key_pair().unwrap();
+
+    // keygen::generate_data_key();
 
 
     sgx_status_t::SGX_SUCCESS
