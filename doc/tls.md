@@ -9,8 +9,8 @@ In our TLS server, we have the following:
 
 ```rust
 struct TlsServer {
+  server: TcpListener,
     enclave_id: sgx_enclave_id_t,
-    server: TcpListener,
     cert: CString,
     key: CString,
     mode: ServerMode,
@@ -29,6 +29,185 @@ root@cd6c23a03efe:~/sgx/tlsserver/bin# ./app
 [+] TlsServer new "end.fullchain" "end.rsa"
 [+] TlsServer new success!
 ```
+
+#### Initialising a new TLS server
+
+1. TLSServer's `main.rs` function initialises a new enclave:
+
+```rust
+fn init_enclave() -> SgxResult<SgxEnclave> {
+    let mut launch_token: sgx_launch_token_t = [0; 1024];
+    let mut launch_token_updated: i32 = 0;
+    let mut misc_attr = sgx_misc_attribute_t {secs_attr: sgx_attributes_t { flags:0, xfrm:0}, misc_select:0};
+    SgxEnclave::create(ENCLAVE_FILE,
+                       debug,
+                       &mut launch_token,
+                       &mut launch_token_updated,
+                       &mut misc_attr)
+}
+```
+
+2. The server sets up a few configurations like the certificate, key and a monitoring service for TcpStream. We use `poll` to monitor a large number of event types, until one of them is ready for `READ` or `WRITE`. 
+
+```rust
+let mut poll = mio::Poll::new().unwrap();
+poll.register(&listener,
+              LISTENER,
+              mio::Ready::readable(),
+              mio::PollOpt::level()).unwrap();
+```
+3. App initialise a new TlsServer in enclave by calling the following function:
+
+```rust
+ let mut tlsserv = TlsServer::new(enclave.geteid(), listener, ServerMode::Echo, cert, key);
+```
+
+4. Within the enclave, the TlsServer will be initiated with a new session created for the configuration. The handshake protocol is done through a [modified version](https://github.com/mesalock-linux/rustls) of the `rustls` library, which has been modified to be compatible with Intel SGX.
+
+```rust
+fn new(fd: c_int, cfg: Arc<rustls::ServerConfig>) -> TlsServer {
+    TlsServer {
+        socket: TcpStream::new(fd).unwrap(),
+        tls_session: rustls::ServerSession::new(&cfg)
+    }
+}
+```
+
+
+
+#### Accepting connection
+
+1. Whenever there is a new connection, the `poll` engine will pick up the event and accept the connection
+   
+   ```rust
+
+   // acceting an event
+    'outer: loop {
+        poll.poll(&mut events, None)
+            .unwrap();
+
+        for event in events.iter() {
+            match event.token() {
+                LISTENER => {
+                    if !tlsserv.accept(&mut poll) {
+                        break 'outer;
+                    }
+                }
+                _ => tlsserv.conn_event(&mut poll, &event)
+            }
+        }
+    }
+
+
+    fn accept(&mut self, poll: &mut mio::Poll) -> bool {
+        match self.server.accept() {
+            Ok((socket, addr)) => {
+
+                println!("Accepting new connection from {:?}", addr);
+
+                let mut tlsserver_id: usize = 0xFFFF_FFFF_FFFF_FFFF;
+                let retval = unsafe {
+                    tls_server_new(self.enclave_id,
+                                   &mut tlsserver_id,
+                                   socket.as_raw_fd(),
+                                   self.cert.as_bytes_with_nul().as_ptr() as * const c_char,
+                                   self.key.as_bytes_with_nul().as_ptr() as * const c_char)
+                };
+
+                if retval != sgx_status_t::SGX_SUCCESS {
+                    println!("[-] ECALL Enclave [tls_server_new] Failed {}!", retval);
+                    return false;
+                }
+
+                if tlsserver_id == 0xFFFF_FFFF_FFFF_FFFF {
+                    println!("[-] New enclave tlsserver error");
+                    return false;
+                }
+
+                let mode = self.mode.clone();
+                let token = mio::Token(self.next_id);
+                self.next_id += 1;
+                self.connections.insert(token, Connection::new(self.enclave_id,
+                                                               socket,
+                                                               token,
+                                                               mode,
+                                                               tlsserver_id));
+                self.connections[&token].register(poll);
+                true
+            }
+            Err(e) => {
+                println!("encountered error while accepting connection; err={:?}", e);
+                false
+            }
+        }
+    }
+   ```
+2. The server will establish a connection with the client
+3. If the client is sending data, the server will attempt to read the data from the app (`main.rs`)
+
+```rust
+fn read_tls(&self, buf: &mut [u8]) -> isize {
+        let mut retval = -1;
+        let result = unsafe {
+            tls_server_read(self.enclave_id,
+                            &mut retval,
+                            self.tlsserver_id,
+                            buf.as_ptr() as * mut c_void,
+                            buf.len() as c_int)
+        };
+        match result {
+            sgx_status_t::SGX_SUCCESS => { retval as isize },
+            _ => {
+                println!("[-] ECALL Enclave [tls_server_wants_read] Failed {}!", result);
+                return -1;
+            },
+        }
+    }
+```
+
+4. The TLS data will read the data sent within the enclave:
+   
+```rust
+#[no_mangle]
+pub extern "C" fn tls_server_read(session_id: size_t, buf: * mut c_char, cnt: c_int) -> c_int {
+    if let Some(session_ptr) = Sessions::get_session(session_id) {
+        let session = unsafe { &mut *(session_ptr) };
+        if buf.is_null() || cnt == 0 {
+            // just read_tls
+            session.do_read()
+        } else {
+            if !rsgx_raw_is_outside_enclave(buf as * const u8, cnt as usize) {
+                return -1;
+            }
+            // read plain buffer
+            let mut plaintext = Vec::new();
+            let mut result = session.read(&mut plaintext);
+
+            // process the retrieval of DID and sk_d2 and store them
+            store_data_from_datareg(&plaintext);
+
+            if result == -1 {
+                return result;
+            }
+            if cnt < result {
+                result = cnt;
+            }
+            rsgx_sfence();
+            let raw_buf = unsafe { slice::from_raw_parts_mut(buf as * mut u8, result as usize) };
+            raw_buf.copy_from_slice(plaintext.as_slice());
+            result
+        }
+    } else { -1 }
+}
+```
+
+5. As the TLSServer is run by the authority, the authority should check for the TLSREquest and store the `DID` and `sk_d2` within the enclave. 
+
+
+
+
+
+
 
 
 ## TLS Client
