@@ -142,7 +142,40 @@ fn new(fd: c_int, cfg: Arc<rustls::ServerConfig>) -> TlsServer {
         }
     }
    ```
-2. The server will establish a connection with the client
+2. The server will establish a connection with the client. A connection consists of the following struct:
+
+```rust
+impl Connection {
+ fn new(enclave_id: sgx_enclave_id_t,
+           socket: TcpStream,
+           token: mio::Token,
+           mode: ServerMode,
+           tlsserver_id: usize)
+           -> Connection {
+        let back = open_back(&mode);
+        Connection {
+            enclave_id: enclave_id,
+            socket: socket,
+            token: token,
+            closing: false,
+            mode: mode,
+            tlsserver_id: tlsserver_id,
+            back: back,
+            sent_http_response: false,
+        }
+    }
+  fn read_tls(&self, buf: &mut [u8]) -> isize {
+    // omitted for brevity reasons
+  }
+  fn write_tls(&self, buf: &[u8]) -> isize {
+    // omitted for brevity reasons
+  }
+  fn tls_close(&self) {
+    tls_server_close(self.enclave_id, self.tlsserver_id);
+  }
+}
+
+```
 3. If the client is sending data, the server will attempt to read the data from the app (`main.rs`)
 
 ```rust
