@@ -2,6 +2,8 @@
 
 This repository consists of the following codebase:
 * `tlsserver` : TLS Server to be executed by the Authority
+* `tlsclient` : TLSCLient to be used in the data registration
+* `core`: core services for initiating wallet creation using `secp256k1`
 
 
 ### Installation instructions
