@@ -335,11 +335,11 @@ fn main() {
     println!("[+] Test tlsclient in enclave, start!");
 
     let port = 8443;
-    let hostname = "localhost";
+    let hostname = "localhost"; // server IP of Authority server
     let cert = "./ca.cert";
     let addr = lookup_ipv4(hostname, port);
     let sock = TcpStream::connect(&addr).expect("[-] Connect tls server failed!");
-
+    
     let tlsclient = TlsClient::new(enclave.geteid(),
                                    sock,
                                    hostname,
@@ -350,7 +350,7 @@ fn main() {
 
         let mut tlsclient = tlsclient.unwrap();
 
-        let httpreq = format!("GET / HTTP/1.1\r\nHost: {}\r\nConnection: \
+        let httpreq = format!("POST / HTTP/1.1\r\nHost: {}\r\nConnection: \
                                close\r\nAccept-Encoding: identity\r\n\r\n",
                               hostname);
 
