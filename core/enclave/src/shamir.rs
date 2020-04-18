@@ -2,7 +2,8 @@ use std::borrow::ToOwned;
 use std::string::String;
 use std::string::ToString;
 use std::vec::Vec;
-// use sgx_rand::{thread_rng, Rng};
+use sgx_rand::Rng;
+use sgx_rand::os::SgxRng;
 
 pub struct SecretData {
     pub secret_data: Option<String>,
@@ -18,17 +19,18 @@ pub enum ShamirError {
 #[allow(dead_code)]
 impl SecretData {
     pub fn with_secret(secret: &str, threshold: u8) -> SecretData {
-        let mut coefficients: Vec<Vec<u8>> = vec![];
+
         println!("In SecretData");
 
         // fixme: change to mut after randomisation impl
-        let rand_container = vec![0u8; (threshold - 1) as usize];
+        let mut rand_container = vec![0u8; (threshold - 1) as usize];
+        let mut coefficients: Vec<Vec<u8>> = vec![];
 
         for c in secret.as_bytes() {
 
             // fixme: randomise the bytes
-            
-            // thread_rng().fill_bytes(&mut rand_container);
+            let mut rng = SgxRng::new().unwrap();
+            rng.fill_bytes(&mut rand_container);
             let mut coef: Vec<u8> = vec![*c];
             for r in rand_container.iter() {
                 coef.push(*r);

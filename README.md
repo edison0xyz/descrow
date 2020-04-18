@@ -24,3 +24,11 @@ cd bin
 ## simulation mode 
 SGX_MODE=SW make
 ```
+
+### Utilities
+
+Getting IP address from the docker.
+
+```bash
+docker inspect silly_hellman | grep IPAddress
+```

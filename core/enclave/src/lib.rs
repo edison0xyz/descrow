@@ -84,47 +84,60 @@ pub extern "C" fn process_data_registration(escrowed_data_identifier: *const u8,
 
      // generate ecc256 Keypair
     let ecc_handle = SgxEccHandle::new();
-    println!("attempting to create keypair");
+    let _ = ecc_handle.open(); 
+    println!("[1]   Attempting to create keypair");
     let mut private = sgx_ec256_private_t::default();
     let mut public = sgx_ec256_public_t::default();
     // let (private, public) = ecc_handle.create_key_pair().unwrap();
+    println!("[1]   Private-Public Keys created");
 
     // convert private_key into string
     let private_key = match str::from_utf8(&private.r) {
         Ok(pk) => pk,
         Err(e) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
-    println!("Private key: {:?}", private_key);
+    // println!("Private key: {:?}", private_key);
 
     // split the private key into share_1 (sk_d1) and share_2 (sk_d2)
-    println!("attempting to split keys...");
+    println!("[2]   Attempting to split keys..");
     let secret_data = SecretData::with_secret(private_key, 2);
     let sk_d1 = secret_data.get_share(1).unwrap();
     let sk_d2 = secret_data.get_share(2).unwrap();
+    println!("[2]   Key successfully split into d1 and d2");
 
-    println!("Shamir share 1 {:?}", sk_d1);
-    println!("Shamir share 2 {:?}", sk_d2);
+    // println!("Shamir share 1 {:?}", sk_d1);
+    // println!("Shamir share 2 {:?}", sk_d2);
 
+    /*
 
-    let s1 = sk_d1.len();
+    // for testing the recovery functions only
+    println!("Attempting to recover secret");
+    let recovered = SecretData::recover_secret(2,vec![sk_d1, sk_d2]).unwrap();
+    println!("Recovered secret: {}", recovered);
+    */
 
-    // // declare vectors
+    // === sealing data ====
+
+    // let s1 = sk_d1.len();
+
+    // // // declare vectors
     // let sealed_log_size : u32 = 1024;
-    // let sealed_log = [0_u8; 0];
+    // let mut sealed_log = [0_u8; 1024];
+    // let mut sl : u8 = 0;
 
-    // let ret = create_sealeddata_for_fixed(&sealed_log, sealed_log_size);
+    // let ret = create_sealeddata_for_fixed(&mut sealed_log, sealed_log_size);
     // match ret {
-    //     sgx_status_t::SGX_SUCCESS => { println!("Success") },
+    //     sgx_status_t::SGX_SUCCESS => { println!("[4] Successfulyl sealed d1 into sgx") },
     //     _ => {
     //         println!("[-] Error sealing data {}!", ret);
-    // //         return sgx_status_t::SGX_ERROR_UNEXPECTED;
-    // //     }
+    //         return sgx_status_t::SGX_ERROR_UNEXPECTED;
+    //     }
     // };
 
     // seal sk_d1
 
-    println!("Pub key: {:?}", sk_d1);
-    println!("size: {}", s1);
+    // println!("Pub key: {:?}", sk_d1);
+    // println!("size: {}", s1);
 
     // keygen::generate_data_key();
 
