@@ -98,7 +98,6 @@ pub extern "C" fn process_data_registration(escrowed_data_identifier: *const u8,
 
     println!("[1]   Initialising escrow wallet private key and public key..");
     let sk = generate_eth_key();
-
     println!("[2]   Escrow wallet private key initialised successfully.");
 
 
@@ -115,6 +114,15 @@ pub extern "C" fn process_data_registration(escrowed_data_identifier: *const u8,
     let secret_data = SecretData::with_secret(private_key, 2);
     let sk_d1 = secret_data.get_share(1).unwrap();
     let sk_d2 = secret_data.get_share(2).unwrap();
+
+    println!("Shamir share 1 {:?}", sk_d1);
+    println!("Shamir share 2 {:?}", sk_d2);
+
+    // for testing the recovery functions only
+    // println!("Attempting to recover secret");
+    // let recovered = SecretData::recover_secret(2,vec![sk_d1, sk_d2]).unwrap();
+    // println!("Recovered secret: {}", recovered);
+
     println!("[2]   Key successfully split into d1 and d2");
 
     println!("[3]   Attempting to send D2 to authority using TLS. Establishing connection with authority... ");
@@ -123,22 +131,6 @@ pub extern "C" fn process_data_registration(escrowed_data_identifier: *const u8,
 
 
     println!("[4]   Sealing sk_d1 and DID...");
-    println!("[4]   Seal successful.");
-
-
-    println!("[5] Signing transaction payload with sk_enc... ");
-    println!("[5] Transaction payload successfully signed"); 
-
-    // println!("Shamir share 1 {:?}", sk_d1);
-    // println!("Shamir share 2 {:?}", sk_d2);
-
-    /*
-
-    // for testing the recovery functions only
-    println!("Attempting to recover secret");
-    let recovered = SecretData::recover_secret(2,vec![sk_d1, sk_d2]).unwrap();
-    println!("Recovered secret: {}", recovered);
-    */
 
     // === sealing data ====
 
@@ -159,6 +151,17 @@ pub extern "C" fn process_data_registration(escrowed_data_identifier: *const u8,
     // };
 
     // seal sk_d1
+
+
+    println!("[4]   Seal successful.");
+
+
+    println!("[5] Signing transaction payload with sk_enc... ");
+    println!("[5] Transaction payload successfully signed"); 
+
+ 
+
+
 
     // println!("Pub key: {:?}", sk_d1);
     // println!("size: {}", s1);
