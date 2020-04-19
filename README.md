@@ -6,9 +6,22 @@ This repository consists of the following codebase:
 * `core`: core services for initiating wallet creation using `secp256k1`
 
 
-### Installation instructions
+## Installation instructions
 
 This implementation is written in Rust using [Rust-SDK](https://github.com/apache/incubator-teaclave-sgx-sdk).
+
+
+### TLS Server
+
+TLSServer will be operated by the authority. For this implementation, we provided a listening port for the TLSServer.
+
+Run the following command. The TLSServer will be exposed through port 8443 (port number is customisable).
+
+```bash
+docker run -ti --rm -p 8443:8443 -v /Users/edison/code/sgx/data-escrow:/root/sgx baiduxlab/sgx-rust
+```
+
+### Data Escrow
 
 ```bash
 docker run -ti --rm -v /Users/edison/code/sgx/data-escrow:/root/sgx  baiduxlab/sgx-rust
