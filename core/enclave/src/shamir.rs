@@ -20,8 +20,6 @@ pub enum ShamirError {
 impl SecretData {
     pub fn with_secret(secret: &str, threshold: u8) -> SecretData {
 
-        println!("In SecretData");
-
         // fixme: change to mut after randomisation impl
         let mut rand_container = vec![0u8; (threshold - 1) as usize];
         let mut coefficients: Vec<Vec<u8>> = vec![];
@@ -37,7 +35,7 @@ impl SecretData {
             }
             coefficients.push(coef);
         }
-        println!("Secret successfully split into {:?} shares.", threshold);
+        println!("[shamir.rs]   Secret successfully split into {:?} shares.", threshold);
         SecretData {
             secret_data: Some(secret.to_string()),
             coefficients,
