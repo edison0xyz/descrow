@@ -17,12 +17,11 @@
 
 #![crate_name = "escrowenclave"]
 #![crate_type = "staticlib"]
-
 #![cfg_attr(not(target_env = "sgx"), no_std)]
 #![cfg_attr(target_env = "sgx", feature(rustc_private))]
 
-extern crate sgx_types;
 extern crate sgx_tseal;
+extern crate sgx_types;
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
@@ -31,26 +30,24 @@ extern crate sgx_tcrypto;
 
 #[macro_use]
 extern crate serde_derive;
-extern crate serde_cbor;
 extern crate secp256k1;
+extern crate serde_cbor;
 
-
-mod shamir;
 mod keygen;
+mod shamir;
 
-use sgx_types::{sgx_status_t, sgx_sealed_data_t};
-use sgx_types::marker::ContiguousMemory;
-use sgx_tseal::{SgxSealedData};
 use sgx_rand::{Rng, StdRng};
-use std::vec::Vec;
+use sgx_tcrypto::SgxEccHandle;
+use sgx_tseal::SgxSealedData;
+use sgx_types::marker::ContiguousMemory;
+use sgx_types::{sgx_ec256_private_t, sgx_ec256_public_t};
+use sgx_types::{sgx_sealed_data_t, sgx_status_t};
 use std::mem;
 use std::str;
-use sgx_types::{sgx_ec256_private_t, sgx_ec256_public_t};
-use sgx_tcrypto::{SgxEccHandle};
+use std::vec::Vec;
 
-use shamir::SecretData;
 use keygen::generate_eth_key;
-
+use shamir::SecretData;
 
 // This struct could not be used in sgx_seal directly because it is
 // **not** continuous in memory. The `vec` is the bad member.
@@ -74,33 +71,35 @@ struct RandDataFixed {
 // For RandDataSerializable, we use serde_cbor (or anything you like)
 // to serialize it to a Vec<u8>. And then use the _slice func to deal
 // with [u8] because [u8] does implemented ContiguousMemory
-unsafe impl ContiguousMemory for RandDataFixed{}
+unsafe impl ContiguousMemory for RandDataFixed {}
 
 #[no_mangle]
-pub extern "C" fn process_data_registration(escrowed_data_identifier: *const u8, text_len: usize) -> sgx_status_t {
+pub extern "C" fn process_data_registration(
+    escrowed_data_identifier: *const u8,
+    text_len: usize,
+) -> sgx_status_t {
     println!("[+] process_data_registration.. ");
     println!("{:?}", escrowed_data_identifier);
 
     let mut rand = match StdRng::new() {
         Ok(rng) => rng,
-        Err(_) => { return sgx_status_t::SGX_ERROR_UNEXPECTED; },
+        Err(_) => {
+            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+        }
     };
 
-     // generate ecc256 Keypair
+    // generate ecc256 Keypair
     let ecc_handle = SgxEccHandle::new();
-    let _ = ecc_handle.open(); 
+    let _ = ecc_handle.open();
     println!("[1]   Attempting to create keypair");
     let mut private = sgx_ec256_private_t::default();
     let mut public = sgx_ec256_public_t::default();
     // let (private, public) = ecc_handle.create_key_pair().unwrap();
     println!("[1]   Private-Public Keys created");
 
-
     println!("[1]   Initialising escrow wallet private key and public key..");
     let sk = generate_eth_key();
     println!("[2]   Escrow wallet private key initialised successfully.");
-
-
 
     // convert private_key into string
     let private_key = match str::from_utf8(&private.r) {
@@ -129,8 +128,22 @@ pub extern "C" fn process_data_registration(escrowed_data_identifier: *const u8,
     println!("[3]   Connection established");
     println!("[3]   D2 securely sent to authority");
 
-
     println!("[4]   Sealing sk_d1 and DID...");
+
+    let mut sealed_log_arr: [u8; 2048] = [0; 2048];
+    let sealed_log = sealed_log_arr.as_mut_ptr();
+    let sealed_log_size: u32 = 2048;
+
+    let ret = create_sealeddata_for_fixed(sealed_log, sealed_log_size);
+    match ret {
+        sgx_status_t::SGX_SUCCESS => { println!("[4] Successfulyl sealed d1 into sgx") },
+        _ => {
+            println!("[-] Error sealing data {}!", ret);
+            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+        }
+    };
+
+
 
     // === sealing data ====
 
@@ -152,16 +165,10 @@ pub extern "C" fn process_data_registration(escrowed_data_identifier: *const u8,
 
     // seal sk_d1
 
-
     println!("[4]   Seal successful.");
 
-
     println!("[5] Signing transaction payload with sk_enc... ");
-    println!("[5] Transaction payload successfully signed"); 
-
- 
-
-
+    println!("[5] Transaction payload successfully signed");
 
     // println!("Pub key: {:?}", sk_d1);
     // println!("size: {}", s1);
@@ -173,17 +180,29 @@ pub extern "C" fn process_data_registration(escrowed_data_identifier: *const u8,
     sgx_status_t::SGX_SUCCESS
 }
 
+fn to_sealed_log<T: Copy + ContiguousMemory>(
+    sealed_data: &SgxSealedData<T>,
+    sealed_log: *mut u8,
+    sealed_log_size: u32,
+) -> Option<*mut sgx_sealed_data_t> {
+    unsafe {
+        sealed_data.to_raw_sealed_data_t(sealed_log as *mut sgx_sealed_data_t, sealed_log_size)
+    }
+}
+
 #[no_mangle]
-pub extern "C" fn create_sealeddata_for_fixed(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
-
-
-
+pub extern "C" fn create_sealeddata_for_fixed(
+    sealed_log: *mut u8,
+    sealed_log_size: u32,
+) -> sgx_status_t {
     let mut data = RandDataFixed::default();
     data.key = 0x1234;
 
     let mut rand = match StdRng::new() {
         Ok(rng) => rng,
-        Err(_) => { return sgx_status_t::SGX_ERROR_UNEXPECTED; },
+        Err(_) => {
+            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+        }
     };
     rand.fill_bytes(&mut data.rand);
 
@@ -191,7 +210,9 @@ pub extern "C" fn create_sealeddata_for_fixed(sealed_log: * mut u8, sealed_log_s
     let result = SgxSealedData::<RandDataFixed>::seal_data(&aad, &data);
     let sealed_data = match result {
         Ok(x) => x,
-        Err(ret) => { return ret; },
+        Err(ret) => {
+            return ret;
+        }
     };
 
     let opt = to_sealed_log_for_fixed(&sealed_data, sealed_log, sealed_log_size);
@@ -205,14 +226,16 @@ pub extern "C" fn create_sealeddata_for_fixed(sealed_log: * mut u8, sealed_log_s
 }
 
 #[no_mangle]
-pub extern "C" fn verify_sealeddata_for_fixed(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
-
+pub extern "C" fn verify_sealeddata_for_fixed(
+    sealed_log: *mut u8,
+    sealed_log_size: u32,
+) -> sgx_status_t {
     let opt = from_sealed_log_for_fixed::<RandDataFixed>(sealed_log, sealed_log_size);
     let sealed_data = match opt {
         Some(x) => x,
         None => {
             return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-        },
+        }
     };
 
     let result = sealed_data.unseal_data();
@@ -220,7 +243,7 @@ pub extern "C" fn verify_sealeddata_for_fixed(sealed_log: * mut u8, sealed_log_s
         Ok(x) => x,
         Err(ret) => {
             return ret;
-        },
+        }
     };
 
     let data = unsealed_data.get_decrypt_txt();
@@ -231,14 +254,18 @@ pub extern "C" fn verify_sealeddata_for_fixed(sealed_log: * mut u8, sealed_log_s
 }
 
 #[no_mangle]
-pub extern "C" fn create_sealeddata_for_serializable(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
-
+pub extern "C" fn create_sealeddata_for_serializable(
+    sealed_log: *mut u8,
+    sealed_log_size: u32,
+) -> sgx_status_t {
     let mut data = RandDataSerializable::default();
     data.key = 0x1234;
 
     let mut rand = match StdRng::new() {
         Ok(rng) => rng,
-        Err(_) => { return sgx_status_t::SGX_ERROR_UNEXPECTED; },
+        Err(_) => {
+            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+        }
     };
     rand.fill_bytes(&mut data.rand);
 
@@ -253,7 +280,9 @@ pub extern "C" fn create_sealeddata_for_serializable(sealed_log: * mut u8, seale
     let result = SgxSealedData::<[u8]>::seal_data(&aad, encoded_slice);
     let sealed_data = match result {
         Ok(x) => x,
-        Err(ret) => { return ret; },
+        Err(ret) => {
+            return ret;
+        }
     };
 
     let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, sealed_log_size);
@@ -267,14 +296,16 @@ pub extern "C" fn create_sealeddata_for_serializable(sealed_log: * mut u8, seale
 }
 
 #[no_mangle]
-pub extern "C" fn verify_sealeddata_for_serializable(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
-
+pub extern "C" fn verify_sealeddata_for_serializable(
+    sealed_log: *mut u8,
+    sealed_log_size: u32,
+) -> sgx_status_t {
     let opt = from_sealed_log_for_slice::<u8>(sealed_log, sealed_log_size);
     let sealed_data = match opt {
         Some(x) => x,
         None => {
             return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-        },
+        }
     };
 
     let result = sealed_data.unseal_data();
@@ -282,7 +313,7 @@ pub extern "C" fn verify_sealeddata_for_serializable(sealed_log: * mut u8, seale
         Ok(x) => x,
         Err(ret) => {
             return ret;
-        },
+        }
     };
 
     let encoded_slice = unsealed_data.get_decrypt_txt();
@@ -295,26 +326,46 @@ pub extern "C" fn verify_sealeddata_for_serializable(sealed_log: * mut u8, seale
     sgx_status_t::SGX_SUCCESS
 }
 
-fn to_sealed_log_for_fixed<T: Copy + ContiguousMemory>(sealed_data: &SgxSealedData<T>, sealed_log: * mut u8, sealed_log_size: u32) -> Option<* mut sgx_sealed_data_t> {
+fn to_sealed_log_for_fixed<T: Copy + ContiguousMemory>(
+    sealed_data: &SgxSealedData<T>,
+    sealed_log: *mut u8,
+    sealed_log_size: u32,
+) -> Option<*mut sgx_sealed_data_t> {
     unsafe {
-        sealed_data.to_raw_sealed_data_t(sealed_log as * mut sgx_sealed_data_t, sealed_log_size)
+        sealed_data.to_raw_sealed_data_t(sealed_log as *mut sgx_sealed_data_t, sealed_log_size)
     }
 }
 
-fn from_sealed_log_for_fixed<'a, T: Copy + ContiguousMemory>(sealed_log: * mut u8, sealed_log_size: u32) -> Option<SgxSealedData<'a, T>> {
+fn from_sealed_log_for_fixed<'a, T: Copy + ContiguousMemory>(
+    sealed_log: *mut u8,
+    sealed_log_size: u32,
+) -> Option<SgxSealedData<'a, T>> {
     unsafe {
-        SgxSealedData::<T>::from_raw_sealed_data_t(sealed_log as * mut sgx_sealed_data_t, sealed_log_size)
+        SgxSealedData::<T>::from_raw_sealed_data_t(
+            sealed_log as *mut sgx_sealed_data_t,
+            sealed_log_size,
+        )
     }
 }
 
-fn to_sealed_log_for_slice<T: Copy + ContiguousMemory>(sealed_data: &SgxSealedData<[T]>, sealed_log: * mut u8, sealed_log_size: u32) -> Option<* mut sgx_sealed_data_t> {
+fn to_sealed_log_for_slice<T: Copy + ContiguousMemory>(
+    sealed_data: &SgxSealedData<[T]>,
+    sealed_log: *mut u8,
+    sealed_log_size: u32,
+) -> Option<*mut sgx_sealed_data_t> {
     unsafe {
-        sealed_data.to_raw_sealed_data_t(sealed_log as * mut sgx_sealed_data_t, sealed_log_size)
+        sealed_data.to_raw_sealed_data_t(sealed_log as *mut sgx_sealed_data_t, sealed_log_size)
     }
 }
 
-fn from_sealed_log_for_slice<'a, T: Copy + ContiguousMemory>(sealed_log: * mut u8, sealed_log_size: u32) -> Option<SgxSealedData<'a, [T]>> {
+fn from_sealed_log_for_slice<'a, T: Copy + ContiguousMemory>(
+    sealed_log: *mut u8,
+    sealed_log_size: u32,
+) -> Option<SgxSealedData<'a, [T]>> {
     unsafe {
-        SgxSealedData::<[T]>::from_raw_sealed_data_t(sealed_log as * mut sgx_sealed_data_t, sealed_log_size)
+        SgxSealedData::<[T]>::from_raw_sealed_data_t(
+            sealed_log as *mut sgx_sealed_data_t,
+            sealed_log_size,
+        )
     }
 }
