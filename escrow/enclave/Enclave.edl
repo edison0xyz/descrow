@@ -32,5 +32,10 @@ enclave {
         public int tls_client_wants_read(size_t session_id);
         public int tls_client_wants_write(size_t session_id);
         public void tls_client_close(size_t session_id);
+        public sgx_status_t create_sealeddata_for_fixed([out, size=sealed_log_size]
+            uint8_t* sealed_log, uint32_t sealed_log_size );
+        public sgx_status_t verify_sealeddata_for_fixed([in, size=sealed_log_size]
+            uint8_t* sealed_log, uint32_t sealed_log_size);
+        public sgx_status_t process_data_registration([in, size=len] const uint8_t* escrowed_data_identifier, size_t len);
     };
 };

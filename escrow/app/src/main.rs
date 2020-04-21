@@ -25,31 +25,57 @@ use sgx_urts::SgxEnclave;
 extern crate mio;
 use mio::tcp::TcpStream;
 
-use std::os::unix::io::AsRawFd;
 use std::ffi::CString;
-use std::net::SocketAddr;
-use std::str;
 use std::io::{self, Read, Write};
+use std::mem;
+use std::net::SocketAddr;
 use std::net::TcpStream as tcp_stream;
+use std::os::unix::io::AsRawFd;
+use std::str;
 use std::str::from_utf8;
 
 const BUFFER_SIZE: usize = 1024;
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 
-extern {
-    fn tls_client_new(eid: sgx_enclave_id_t, retval: *mut usize,
-                     fd: c_int, hostname: *const c_char, cert: *const c_char) -> sgx_status_t;
-    fn tls_client_read(eid: sgx_enclave_id_t, retval: *mut c_int,
-                     session_id: usize, buf: *mut c_void, cnt: c_int) -> sgx_status_t;
-    fn tls_client_write(eid: sgx_enclave_id_t, retval: *mut c_int,
-                     session_id: usize, buf: *const c_void, cnt: c_int) -> sgx_status_t;
-    fn tls_client_wants_read(eid: sgx_enclave_id_t, retval: *mut c_int,
-                     session_id: usize) -> sgx_status_t;
-    fn tls_client_wants_write(eid: sgx_enclave_id_t, retval: *mut c_int,
-                     session_id: usize) -> sgx_status_t;
-    fn tls_client_close(eid: sgx_enclave_id_t,
-                     session_id: usize) -> sgx_status_t;
+extern "C" {
+    fn tls_client_new(
+        eid: sgx_enclave_id_t,
+        retval: *mut usize,
+        fd: c_int,
+        hostname: *const c_char,
+        cert: *const c_char,
+    ) -> sgx_status_t;
+    fn tls_client_read(
+        eid: sgx_enclave_id_t,
+        retval: *mut c_int,
+        session_id: usize,
+        buf: *mut c_void,
+        cnt: c_int,
+    ) -> sgx_status_t;
+    fn tls_client_write(
+        eid: sgx_enclave_id_t,
+        retval: *mut c_int,
+        session_id: usize,
+        buf: *const c_void,
+        cnt: c_int,
+    ) -> sgx_status_t;
+    fn tls_client_wants_read(
+        eid: sgx_enclave_id_t,
+        retval: *mut c_int,
+        session_id: usize,
+    ) -> sgx_status_t;
+    fn tls_client_wants_write(
+        eid: sgx_enclave_id_t,
+        retval: *mut c_int,
+        session_id: usize,
+    ) -> sgx_status_t;
+    fn tls_client_close(eid: sgx_enclave_id_t, session_id: usize) -> sgx_status_t;
+    fn process_data_registration(
+        eid: sgx_enclave_id_t,
+        escrowed_data_identifier: *const u8,
+        data_size: usize,
+    ) -> sgx_status_t;
 }
 
 fn init_enclave() -> SgxResult<SgxEnclave> {
@@ -58,12 +84,17 @@ fn init_enclave() -> SgxResult<SgxEnclave> {
     // call sgx_create_enclave to initialize an enclave instance
     // Debug Support: set 2nd parameter to 1
     let debug = 1;
-    let mut misc_attr = sgx_misc_attribute_t {secs_attr: sgx_attributes_t { flags:0, xfrm:0}, misc_select:0};
-    SgxEnclave::create(ENCLAVE_FILE,
-                       debug,
-                       &mut launch_token,
-                       &mut launch_token_updated,
-                       &mut misc_attr)
+    let mut misc_attr = sgx_misc_attribute_t {
+        secs_attr: sgx_attributes_t { flags: 0, xfrm: 0 },
+        misc_select: 0,
+    };
+    SgxEnclave::create(
+        ENCLAVE_FILE,
+        debug,
+        &mut launch_token,
+        &mut launch_token_updated,
+        &mut misc_attr,
+    )
 }
 
 const CLIENT: mio::Token = mio::Token(0);
@@ -78,10 +109,7 @@ struct TlsClient {
 }
 
 impl TlsClient {
-    fn ready(&mut self,
-             poll: &mut mio::Poll,
-             ev: &mio::Event) -> bool {
-
+    fn ready(&mut self, poll: &mut mio::Poll, ev: &mio::Event) -> bool {
         assert_eq!(ev.token(), CLIENT);
 
         if ev.readiness().is_error() {
@@ -109,8 +137,12 @@ impl TlsClient {
 }
 
 impl TlsClient {
-    fn new(enclave_id: sgx_enclave_id_t, sock: TcpStream, hostname: &str, cert: &str) -> Option<TlsClient> {
-
+    fn new(
+        enclave_id: sgx_enclave_id_t,
+        sock: TcpStream,
+        hostname: &str,
+        cert: &str,
+    ) -> Option<TlsClient> {
         println!("[+] TlsClient new {} {}", hostname, cert);
 
         let mut tlsclient_id: usize = 0xFFFF_FFFF_FFFF_FFFF;
@@ -118,11 +150,13 @@ impl TlsClient {
         let c_cert = CString::new(cert.to_string()).unwrap();
 
         let retval = unsafe {
-            tls_client_new(enclave_id,
-                           &mut tlsclient_id,
-                           sock.as_raw_fd(),
-                           c_host.as_ptr() as *const c_char,
-                           c_cert.as_ptr() as *const c_char)
+            tls_client_new(
+                enclave_id,
+                &mut tlsclient_id,
+                sock.as_raw_fd(),
+                c_host.as_ptr() as *const c_char,
+                c_cert.as_ptr() as *const c_char,
+            )
         };
 
         if retval != sgx_status_t::SGX_SUCCESS {
@@ -135,8 +169,7 @@ impl TlsClient {
             return Option::None;
         }
 
-        Option::Some(
-            TlsClient {
+        Option::Some(TlsClient {
             enclave_id: enclave_id,
             socket: sock,
             closing: false,
@@ -145,10 +178,7 @@ impl TlsClient {
     }
 
     fn close(&self) {
-
-        let retval = unsafe {
-            tls_client_close(self.enclave_id, self.tlsclient_id)
-        };
+        let retval = unsafe { tls_client_close(self.enclave_id, self.tlsclient_id) };
 
         if retval != sgx_status_t::SGX_SUCCESS {
             println!("[-] ECALL Enclave [tls_client_close] Failed {}!", retval);
@@ -158,15 +188,17 @@ impl TlsClient {
     fn read_tls(&self, buf: &mut [u8]) -> isize {
         let mut retval = -1;
         let result = unsafe {
-            tls_client_read(self.enclave_id,
-                            &mut retval,
-                            self.tlsclient_id,
-                            buf.as_mut_ptr() as * mut c_void,
-                            buf.len() as c_int)
+            tls_client_read(
+                self.enclave_id,
+                &mut retval,
+                self.tlsclient_id,
+                buf.as_mut_ptr() as *mut c_void,
+                buf.len() as c_int,
+            )
         };
 
         match result {
-            sgx_status_t::SGX_SUCCESS => { retval as isize }
+            sgx_status_t::SGX_SUCCESS => retval as isize,
             _ => {
                 println!("[-] ECALL Enclave [tls_client_read] Failed {}!", result);
                 -1
@@ -177,15 +209,17 @@ impl TlsClient {
     fn write_tls(&self, buf: &[u8]) -> isize {
         let mut retval = -1;
         let result = unsafe {
-            tls_client_write(self.enclave_id,
-                             &mut retval,
-                             self.tlsclient_id,
-                             buf.as_ptr() as * const c_void,
-                             buf.len() as c_int)
+            tls_client_write(
+                self.enclave_id,
+                &mut retval,
+                self.tlsclient_id,
+                buf.as_ptr() as *const c_void,
+                buf.len() as c_int,
+            )
         };
 
         match result {
-            sgx_status_t::SGX_SUCCESS => { retval as isize }
+            sgx_status_t::SGX_SUCCESS => retval as isize,
             _ => {
                 println!("[-] ECALL Enclave [tls_client_write] Failed {}!", result);
                 -1
@@ -214,60 +248,64 @@ impl TlsClient {
     }
 
     fn register(&self, poll: &mut mio::Poll) {
-        poll.register(&self.socket,
-                      CLIENT,
-                      self.ready_interest(),
-                      mio::PollOpt::level() | mio::PollOpt::oneshot())
-            .unwrap();
+        poll.register(
+            &self.socket,
+            CLIENT,
+            self.ready_interest(),
+            mio::PollOpt::level() | mio::PollOpt::oneshot(),
+        )
+        .unwrap();
     }
 
     fn reregister(&self, poll: &mut mio::Poll) {
-        poll.reregister(&self.socket,
-                        CLIENT,
-                        self.ready_interest(),
-                        mio::PollOpt::level() | mio::PollOpt::oneshot())
-            .unwrap();
+        poll.reregister(
+            &self.socket,
+            CLIENT,
+            self.ready_interest(),
+            mio::PollOpt::level() | mio::PollOpt::oneshot(),
+        )
+        .unwrap();
     }
 
     fn wants_read(&self) -> bool {
         let mut retval = -1;
-        let result = unsafe {
-            tls_client_wants_read(self.enclave_id,
-                                  &mut retval,
-                                  self.tlsclient_id)
-        };
+        let result =
+            unsafe { tls_client_wants_read(self.enclave_id, &mut retval, self.tlsclient_id) };
 
         match result {
-            sgx_status_t::SGX_SUCCESS => { },
+            sgx_status_t::SGX_SUCCESS => {}
             _ => {
-                println!("[-] ECALL Enclave [tls_client_wants_read] Failed {}!", result);
+                println!(
+                    "[-] ECALL Enclave [tls_client_wants_read] Failed {}!",
+                    result
+                );
                 return false;
             }
         }
         match retval {
             0 => false,
-            _ => true
+            _ => true,
         }
     }
 
     fn wants_write(&self) -> bool {
         let mut retval = -1;
-        let result = unsafe {
-            tls_client_wants_write(self.enclave_id,
-                                   &mut retval,
-                                   self.tlsclient_id)
-        };
+        let result =
+            unsafe { tls_client_wants_write(self.enclave_id, &mut retval, self.tlsclient_id) };
 
         match result {
-            sgx_status_t::SGX_SUCCESS => { },
+            sgx_status_t::SGX_SUCCESS => {}
             _ => {
-                println!("[-] ECALL Enclave [tls_client_wants_write] Failed {}!", result);
+                println!(
+                    "[-] ECALL Enclave [tls_client_wants_write] Failed {}!",
+                    result
+                );
                 return false;
             }
         }
         match retval {
             0 => false,
-            _ => true
+            _ => true,
         }
     }
 
@@ -322,8 +360,6 @@ fn lookup_ipv4(host: &str, port: u16) -> SocketAddr {
 }
 
 fn main() {
-
-
     match tcp_stream::connect("127.0.0.1:3333") {
         Ok(mut stream) => {
             println!("Successfully connected to server in port 3333");
@@ -342,30 +378,53 @@ fn main() {
                         let text = from_utf8(&data).unwrap();
                         println!("Unexpected reply: {}", text);
                     }
-                },
+                }
                 Err(e) => {
                     println!("Failed to receive data: {}", e);
                 }
             }
-        },
+        }
         Err(e) => {
             println!("Failed to connect: {}", e);
         }
     }
     println!("Terminated.");
 
-
+    let enclave_ret: sgx_status_t = sgx_status_t::SGX_SUCCESS;
 
     let enclave = match init_enclave() {
         Ok(r) => {
             println!("[+] Init Enclave Successful {}!", r.geteid());
             r
-        },
+        }
         Err(x) => {
             println!("[-] Init Enclave Failed {}!", x.as_str());
             return;
-        },
+        }
     };
+
+    let mut escrowed_data_identifier : [u8; 128] = [
+        0x6b, 0xc1, 0xbe, 0xe2, 0x2e, 0x40, 0x9f, 0x96, 0xe9, 0x3d, 0x7e, 0x11, 0x73, 0x93, 0x17,
+        0x2a, 0xae, 0x2d, 0x8a, 0x57, 0x1e, 0x03, 0xac, 0x9c, 0x9e, 0xb7, 0x6f, 0xac, 0x45, 0xaf,
+        0x8e, 0x51, 0x30, 0xc8, 0x1c, 0x46, 0xa3, 0x5c, 0xe4, 0x11, 0xe5, 0xfb, 0xc1, 0x19, 0x1a,
+        0x0a, 0x52, 0xef, 0xf6, 0x9f, 0x24, 0x45, 0xdf, 0x4f, 0x9b, 0x17, 0xad, 0x2b, 0x41, 0x7b,
+        0xe6, 0x6c, 0x37, 0x10, 0x6b, 0xc1, 0xbe, 0xe2, 0x2e, 0x40, 0x9f, 0x96, 0xe9, 0x3d, 0x7e,
+        0x11, 0x73, 0x93, 0x17, 0x2a, 0xae, 0x2d, 0x8a, 0x57, 0x1e, 0x03, 0xac, 0x9c, 0x9e, 0xb7,
+        0x6f, 0xac, 0x45, 0xaf, 0x8e, 0x51, 0x30, 0xc8, 0x1c, 0x46, 0xa3, 0x5c, 0xe4, 0x11, 0xe5,
+        0xfb, 0xc1, 0x19, 0x1a, 0x0a, 0x52, 0xef, 0xf6, 0x9f, 0x24, 0x45, 0xdf, 0x4f, 0x9b, 0x17,
+        0xad, 0x2b, 0x41, 0x7b, 0xe6, 0x6c, 0x37, 0x10,
+    ];
+    let did_ptr = escrowed_data_identifier.as_mut_ptr();
+
+
+    println!("Processing DID registration");
+    // let did_size = mem::size_of(escrowed_data_identifier);
+    let sgx_ret = unsafe {process_data_registration(enclave.geteid(), did_ptr, 128 )};
+    match sgx_ret {
+        sgx_status_t::SGX_SUCCESS => { println!("Successfully processed DID.")},
+        _ => { println!("Error processing DID")}
+    };
+
 
     println!("[+] Test tlsclient in enclave, start!");
 
@@ -374,25 +433,22 @@ fn main() {
     let cert = "./ca.cert";
     let addr = lookup_ipv4(hostname, port);
     let sock = TcpStream::connect(&addr).expect("[-] Connect tls server failed!");
-    
-    let tlsclient = TlsClient::new(enclave.geteid(),
-                                   sock,
-                                   hostname,
-                                   cert);
 
+    let tlsclient = TlsClient::new(enclave.geteid(), sock, hostname, cert);
     if tlsclient.is_some() {
         println!("[+] Tlsclient new success!");
 
         let mut tlsclient = tlsclient.unwrap();
 
-        let httpreq = format!("POST / HTTP/1.1\r\nHost: {}\r\nConnection: \
+        let httpreq = format!(
+            "POST / HTTP/1.1\r\nHost: {}\r\nConnection: \
                                close\r\nAccept-Encoding: identity\r\n\r\n",
-                              hostname);
+            hostname
+        );
 
         tlsclient.write_all(httpreq.as_bytes()).unwrap();
 
-        let mut poll = mio::Poll::new()
-            .unwrap();
+        let mut poll = mio::Poll::new().unwrap();
         let mut events = mio::Events::with_capacity(32);
         tlsclient.register(&mut poll);
 
@@ -401,7 +457,7 @@ fn main() {
             for ev in events.iter() {
                 if !tlsclient.ready(&mut poll, &ev) {
                     tlsclient.close();
-                    break 'outer ;
+                    break 'outer;
                 }
             }
         }
