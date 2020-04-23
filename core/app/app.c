@@ -171,40 +171,8 @@ int SGX_CDECL main(int argc, char *argv[])
         return -1;
     }
 
-     sgx_ret = create_sealeddata_for_fixed(global_eid, &enclave_ret, sealed_log, sealed_log_size);
-     if(sgx_ret != SGX_SUCCESS) {
-        print_error_message(sgx_ret);
-        return -1;
-    }
 
-    if(enclave_ret != SGX_SUCCESS) {
-        print_error_message(enclave_ret);
-        return -1;
-    }
-    printf("create_sealeddata_for_fixed success ...\n");
-
-    sealed_data = (sgx_sealed_data_t *)sealed_log;
-    printf("sealed_data.key_request.key_name 0x%x\n", sealed_data->key_request.key_name);
-    printf("sealed_data.key_request.key_policy 0x%x\n", sealed_data->key_request.key_policy);
-    printf("sealed_data.plain_text_offset 0x%x\n", sealed_data->plain_text_offset);
-    printf("sealed_data.aes_data.payload_size 0x%x\n", sealed_data->aes_data.payload_size);
-
-    sgx_ret = verify_sealeddata_for_fixed(global_eid, &enclave_ret, sealed_log, sealed_log_size);
-    if(sgx_ret != SGX_SUCCESS) {
-        print_error_message(sgx_ret);
-        return -1;
-    }
-
-    if(enclave_ret != SGX_SUCCESS) {
-        print_error_message(sgx_ret);
-        return -1;
-    }
-
-    printf("verify_sealeddata_for_fixed success ...\n");
-
-
-
-    printf("Processing data registration \n");
+    printf("[Relay] Processing data registration \n");
 
     // hard-coded escrowed_data_identifier (DID) message
     uint8_t escrowed_data_identifier[] = {
@@ -228,43 +196,6 @@ int SGX_CDECL main(int argc, char *argv[])
 
     sgx_ret = process_data_registration(global_eid, &enclave_ret, escrowed_data_identifier, sizeof(escrowed_data_identifier));
 
-
-
-
-
-    // memset(sealed_log, 0, sizeof(sealed_log));
-    // sealed_log_size = 1024;
-
-    //  sgx_ret = create_sealeddata_for_serializable(global_eid, &enclave_ret, sealed_log, sealed_log_size);
-    //  if(sgx_ret != SGX_SUCCESS) {
-    //     print_error_message(sgx_ret);
-    //     return -1;
-    // }
-
-    // if(enclave_ret != SGX_SUCCESS) {
-    //     print_error_message(enclave_ret);
-    //     return -1;
-    // }
-    // printf("create_sealeddata_for_serializable success ...\n");
-
-    // sealed_data = (sgx_sealed_data_t *)sealed_log;
-    // printf("sealed_data.key_request.key_name 0x%x\n", sealed_data->key_request.key_name);
-    // printf("sealed_data.key_request.key_policy 0x%x\n", sealed_data->key_request.key_policy);
-    // printf("sealed_data.plain_text_offset 0x%x\n", sealed_data->plain_text_offset);
-    // printf("sealed_data.aes_data.payload_size 0x%x\n", sealed_data->aes_data.payload_size);
-
-    // sgx_ret = verify_sealeddata_for_serializable(global_eid, &enclave_ret, sealed_log, sealed_log_size);
-    // if(sgx_ret != SGX_SUCCESS) {
-    //     print_error_message(sgx_ret);
-    //     return -1;
-    // }
-
-    // if(enclave_ret != SGX_SUCCESS) {
-    //     print_error_message(sgx_ret);
-    //     return -1;
-    // }
-
-    // printf("verify_sealeddata_for_serializable success ...\n");
 
     /* Destroy the enclave */
     sgx_destroy_enclave(global_eid);

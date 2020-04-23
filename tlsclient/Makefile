@@ -21,7 +21,7 @@ SGX_SDK ?= /opt/intel/sgxsdk
 SGX_MODE ?= HW
 SGX_ARCH ?= x64
 
-TOP_DIR := ../../..
+TOP_DIR := ..
 include $(TOP_DIR)/buildenv.mk
 
 ifeq ($(shell getconf LONG_BIT), 32)
@@ -60,8 +60,9 @@ SGX_COMMON_CFLAGS += -fstack-protector
 
 CUSTOM_LIBRARY_PATH := ./lib
 CUSTOM_BIN_PATH := ./bin
-CUSTOM_EDL_PATH := ../../../edl
-CUSTOM_COMMON_PATH := ../../../common
+CUSTOM_EDL_PATH := ../dependencies/edl
+CUSTOM_COMMON_PATH := ../dependencies/common
+
 
 ######## EDL Settings ########
 
@@ -111,8 +112,8 @@ all: $(App_Name) $(Signed_RustEnclave_Name)
 ######## EDL Objects ########
 
 $(Enclave_EDL_Files): $(SGX_EDGER8R) enclave/Enclave.edl
-	$(SGX_EDGER8R) --trusted enclave/Enclave.edl --search-path $(SGX_SDK)/include  --search-path ../../../edl --trusted-dir enclave
-	$(SGX_EDGER8R) --untrusted enclave/Enclave.edl --search-path $(SGX_SDK)/include  --search-path ../../../edl --untrusted-dir app
+	$(SGX_EDGER8R) --trusted enclave/Enclave.edl --search-path $(SGX_SDK)/include  --search-path $(CUSTOM_EDL_PATH) --trusted-dir enclave
+	$(SGX_EDGER8R) --untrusted enclave/Enclave.edl --search-path $(SGX_SDK)/include  --search-path $(CUSTOM_EDL_PATH)  --untrusted-dir app
 	@echo "GEN  =>  $(Enclave_EDL_Files)"
 
 ######## App Objects ########
@@ -138,7 +139,7 @@ enclave/Enclave_t.o: $(Enclave_EDL_Files)
 	@echo "CC   <=  $<"
 
 $(RustEnclave_Name): enclave compiler-rt enclave/Enclave_t.o
-	cp ../../../compiler-rt/libcompiler-rt-patch.a ./lib
+	cp ../compiler-rt/libcompiler-rt-patch.a ./lib
 	@$(CXX) enclave/Enclave_t.o -o $@ $(RustEnclave_Link_Flags)
 	@echo "LINK =>  $@"
 
@@ -153,7 +154,7 @@ enclave:
 
 .PHONY: compiler-rt
 compiler-rt:
-	$(MAKE) -C ../../../compiler-rt/ 2> /dev/null
+	$(MAKE) -C  ../compiler-rt/ 2> /dev/null
 
 .PHONY: clean
 clean:

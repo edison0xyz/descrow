@@ -83,7 +83,7 @@ impl TlsClient {
         assert_eq!(ev.token(), CLIENT);
 
         if ev.readiness().is_error() {
-            println!("Error");
+            println!("[TlsClient.impl] Error");
             return false;
         }
 
@@ -335,7 +335,7 @@ fn main() {
     println!("[+] Test tlsclient in enclave, start!");
 
     let port = 8443;
-    let hostname = "localhost";
+    let hostname = "0.0.0.0";
     let cert = "./ca.cert";
     let addr = lookup_ipv4(hostname, port);
     let sock = TcpStream::connect(&addr).expect("[-] Connect tls server failed!");

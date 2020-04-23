@@ -543,7 +543,9 @@ fn main() {
 
     println!("[+] Test tlsclient in enclave, start!");
 
-    let addr: net::SocketAddr = "0.0.0.0:8443".parse().unwrap();
+    let full_hostname = "0.0.0.0:8443";
+
+    let addr: net::SocketAddr = full_hostname.parse().unwrap();
     let listener = TcpListener::bind(&addr).expect("cannot listen on port");
 
     let cert = CString::new("end.fullchain").unwrap();
@@ -557,7 +559,7 @@ fn main() {
 
     let mut tlsserv = TlsServer::new(enclave.geteid(), listener, ServerMode::Echo, cert, key);
 
-    println!("[+] TlsServer new success!");
+    println!("[+] TlsServer new success! Listening at {}... ", full_hostname);
 
     let mut events = mio::Events::with_capacity(256);
 
