@@ -66,9 +66,10 @@ cd sgx
 
 ## Running the code
 
-For all projects, change directory into the root folder and run the following command:
+### Core
 
 ```
+cd sgx/core
 make clean; make
 cd bin
 ./app
@@ -82,11 +83,15 @@ To change to a custom port, make the edits into the source code, build the files
 
 ```bash
 # running the tlsserver
+cd sgx/tlserver
+make clean; make
 cd sgx/tlsserver/bin
 ./app
 
 # client
-cd sgx/tlsclient/bin
+cd sgx/tlsclient
+make clean; make
+cd bin
 ./app
 ```
 
