@@ -41,6 +41,8 @@ extern crate lazy_static;
 
 mod keygen;
 mod shamir;
+
+// FIXME: To enable this mod once tlsclient issue has been fixed by the package maintainer
 // mod tlsclient;
 
 use sgx_rand::{Rng, StdRng};
@@ -102,21 +104,21 @@ pub extern "C" fn process_data_registration(
     let ecc_handle = SgxEccHandle::new();
     let _ = ecc_handle.open();
     println!("[1]   Attempting to create keypair");
+    // sk_d
     let mut private = sgx_ec256_private_t::default();
     let mut public = sgx_ec256_public_t::default();
-    // let (private, public) = ecc_handle.create_key_pair().unwrap();
-    println!("[1]   Private-Public Keys created");
-
-    println!("[1]   Initialising escrow wallet private key and public key..");
-    let sk = generate_eth_key();
-    println!("[2]   Escrow wallet private key initialised successfully.");
-
-    // convert private_key into string
+    // convert private_key (sk_d) into string
     let private_key = match str::from_utf8(&private.r) {
         Ok(pk) => pk,
         Err(e) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
     // println!("Private key: {:?}", private_key);
+
+    // let (private, public) = ecc_handle.create_key_pair().unwrap();
+    println!("[1]   SK_D created");
+
+    println!("[1]   Initialising escrow wallet private key and public key..");
+
 
     // split the private key into share_1 (sk_d1) and share_2 (sk_d2)
     println!("[2]   Attempting to split keys..");
@@ -146,6 +148,7 @@ pub extern "C" fn process_data_registration(
     let sealed_log = sealed_log_arr.as_mut_ptr();
     let sealed_log_size: u32 = 2048;
 
+    // seal sk_d1
     let ret = create_sealeddata_for_fixed(sealed_log, sealed_log_size);
     match ret {
         sgx_status_t::SGX_SUCCESS => { println!("[4] Successfulyl sealed d1 into sgx") },
@@ -154,16 +157,17 @@ pub extern "C" fn process_data_registration(
             return sgx_status_t::SGX_ERROR_UNEXPECTED;
         }
     };
-
     println!("[4]   Seal successful.");
 
+
+//private key of enclave wallet account 
+    let sk = generate_eth_key();
+    println!("[5]   Escrow wallet private key initialised successfully.");
+
+
     println!("[5] Signing transaction payload with sk_enc... ");
+    // process transaction payload signing with sk
     println!("[5] Transaction payload successfully signed");
-
-    // println!("Pub key: {:?}", sk_d1);
-    // println!("size: {}", s1);
-
-    // keygen::generate_data_key();
 
     println!("[+]   process data registration completed");
 
@@ -242,79 +246,6 @@ pub extern "C" fn verify_sealeddata_for_fixed(
 
     sgx_status_t::SGX_SUCCESS
 }
-
-// #[no_mangle]
-// pub extern "C" fn create_sealeddata_for_serializable(
-//     sealed_log: *mut u8,
-//     sealed_log_size: u32,
-// ) -> sgx_status_t {
-//     let mut data = RandDataSerializable::default();
-//     data.key = 0x1234;
-
-//     let mut rand = match StdRng::new() {
-//         Ok(rng) => rng,
-//         Err(_) => {
-//             return sgx_status_t::SGX_ERROR_UNEXPECTED;
-//         }
-//     };
-//     rand.fill_bytes(&mut data.rand);
-
-//     data.vec.extend(data.rand.iter());
-
-//     let encoded_vec = serde_cbor::to_vec(&data).unwrap();
-//     let encoded_slice = encoded_vec.as_slice();
-//     println!("Length of encoded slice: {}", encoded_slice.len());
-//     println!("Encoded slice: {:?}", encoded_slice);
-
-//     let aad: [u8; 0] = [0_u8; 0];
-//     let result = SgxSealedData::<[u8]>::seal_data(&aad, encoded_slice);
-//     let sealed_data = match result {
-//         Ok(x) => x,
-//         Err(ret) => {
-//             return ret;
-//         }
-//     };
-
-//     let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, sealed_log_size);
-//     if opt.is_none() {
-//         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-//     }
-
-//     println!("{:?}", data);
-
-//     sgx_status_t::SGX_SUCCESS
-// }
-
-// #[no_mangle]
-// pub extern "C" fn verify_sealeddata_for_serializable(
-//     sealed_log: *mut u8,
-//     sealed_log_size: u32,
-// ) -> sgx_status_t {
-//     let opt = from_sealed_log_for_slice::<u8>(sealed_log, sealed_log_size);
-//     let sealed_data = match opt {
-//         Some(x) => x,
-//         None => {
-//             return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-//         }
-//     };
-
-//     let result = sealed_data.unseal_data();
-//     let unsealed_data = match result {
-//         Ok(x) => x,
-//         Err(ret) => {
-//             return ret;
-//         }
-//     };
-
-//     let encoded_slice = unsealed_data.get_decrypt_txt();
-//     println!("Length of encoded slice: {}", encoded_slice.len());
-//     println!("Encoded slice: {:?}", encoded_slice);
-//     let data: RandDataSerializable = serde_cbor::from_slice(encoded_slice).unwrap();
-
-//     println!("{:?}", data);
-
-//     sgx_status_t::SGX_SUCCESS
-// }
 
 fn to_sealed_log_for_fixed<T: Copy + ContiguousMemory>(
     sealed_data: &SgxSealedData<T>,

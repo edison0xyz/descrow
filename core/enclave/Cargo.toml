@@ -27,6 +27,8 @@ libsecp256k1 = { git ="https://github.com/mesalock-linux/libsecp256k1-rs-sgx"}
 rustls = { git = "https://github.com/mesalock-linux/rustls", branch = "mesalock_sgx" }
 webpki = { git = "https://github.com/mesalock-linux/webpki", branch = "mesalock_sgx" }
 lazy_static = { version = "1.4.0", default-features = false, features = ["spin_no_std"] }
+rand = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.6.5_sgx1.1.1" }
+
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 sgx_alloc = { path = "../../dependencies/sgx_alloc" }

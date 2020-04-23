@@ -38,6 +38,19 @@ cd bin
 SGX_MODE=SW make
 ```
 
+
+Running
+
+```bash
+# running the tlsserver
+cd sgx/tlsserver/bin
+./app
+
+# client
+cd sgx/core/bin
+./app
+```
+
 ### Utilities
 
 Getting IP address from the docker.
